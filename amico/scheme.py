@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 from re import match as re_match
-from amico.util import LOG, NOTE, WARNING, ERROR
+#from amico.util import LOG, NOTE, WARNING, ERROR
 
 class Scheme :
     """A class to hold information about an acquisition scheme.
@@ -55,6 +55,7 @@ class Scheme :
         Then, we accept two formats to describe each gradient:
             - if the shape of data is Nx4, the 4^ column is the b-value;
             - if the shape of data is Nx7, the last 4 columns are, respectively, the gradient strength, big delta, small delta and TE.
+            - if the shape of data is Nx(4+n), the 3^ column is the time echo (TE), and the last n column are the effective gradient values beween t=0 and t=TE
 
         Parameters
         ----------
@@ -78,6 +79,9 @@ class Scheme :
         elif self.raw.shape[1] == 7 :
             self.version = 1
             self.b = ( 267.513e6 * self.raw[:,3] * self.raw[:,5] )**2 * (self.raw[:,4] - self.raw[:,5]/3.0) * 1e-6 # in mm^2/s
+        elif self.raw.shape[1] > 7:
+            self.version = 2
+            self.b = np.array([self.compute1D_b(self.raw[i, 4:], self.raw[i, 3]) for i in range(self.raw.shape[0])])
         else :
             ERROR( 'Unrecognized scheme format' )
 
@@ -110,12 +114,19 @@ class Scheme :
                 shell['Delta'] = None
                 shell['delta'] = None
                 shell['TE']    = None
-            else :
+                shell['wf']    = None
+            elif self.version == 1 :
                 shell['G']     = schemeUnique[i][0]
                 shell['Delta'] = schemeUnique[i][1]
                 shell['delta'] = schemeUnique[i][2]
                 shell['TE']    = schemeUnique[i][3]
-
+                shell['wf']    = None
+            else :
+                shell['G']     = None
+                shell['Delta'] = None
+                shell['delta'] = None
+                shell['TE']    = schemeUnique[i][0]
+                shell['wf']    = schemeUnique[i][1:]
             shell['idx']  = np.where((tmp == schemeUnique[i]).all(axis=1))[0]
             shell['grad'] = self.raw[shell['idx'],0:3]
             self.shells.append( shell )
@@ -124,3 +135,30 @@ class Scheme :
     @property
     def nS( self ) :
         return self.b0_count + self.dwi_count
+
+    def compute1D_b(self, g, TE=0.100, unit='usual'):
+        """
+        Computes b value for the waveform g. Works olnly for version = 2.
+        
+        Parameters
+        ----------
+        g : numpy.ndarray
+            Gradient waveform
+        TE : float
+            echo time (s)
+        Returns
+        -------
+        b : float
+            A matrix containing the b-value for each gradient
+        """
+        dt = TE/len(g)
+        gamma = 2.6751987E8
+        g = np.array(g)
+        q = g.cumsum() * dt * gamma
+        b = np.dot(q, q.T) * dt
+        if unit=='usual':
+            return(b/1000000)
+        elif unit=='SI':
+            return(b)
+        else:
+            return(b)
