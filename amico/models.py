@@ -335,61 +335,65 @@ class CylinderZeppelinBall( BaseModel ) :
 
 
     def generate( self, out_path, aux, idx_in, idx_out, ndirs ) :
-        if self.scheme.version != 1 :
-            ERROR( 'This model requires a "VERSION: STEJSKALTANNER" scheme' )
+        if self.scheme.version < 1 :
+            ERROR( 'This model requires a "VERSION: STEJSKALTANNER" scheme or a generalized scheme' )
+        else:
 
-        scheme_high = amico.lut.create_high_resolution_scheme( self.scheme, b_scale=1E6 )
-        filename_scheme = pjoin( out_path, 'scheme.txt' )
-        np.savetxt( filename_scheme, scheme_high.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
-
-        # temporary file where to store "datasynth" output
-        filename_signal = pjoin( tempfile._get_default_tempdir(), next(tempfile._get_candidate_names())+'.Bfloat' )
-
-        nATOMS = len(self.Rs) + len(self.ICVFs) + len(self.d_ISOs)
-        progress = ProgressBar( n=nATOMS, prefix="   ", erase=False )
-
-        # Cylinder(s)
-        for R in self.Rs :
-            CMD = 'datasynth -synthmodel compartment 1 CYLINDERGPD %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, R, filename_scheme, filename_signal )
-            subprocess.call( CMD, shell=True )
-            if not exists( filename_signal ) :
-                ERROR( 'Problems generating the signal with "datasynth"' )
-            signal  = np.fromfile( filename_signal, dtype='>f4' )
-            if exists( filename_signal ) :
-                remove( filename_signal )
-
-            lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, False, ndirs )
-            np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
-            progress.update()
-
-        # Zeppelin(s)
-        for d in [ self.d_par*(1.0-ICVF) for ICVF in self.ICVFs] :
-            CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme, filename_signal )
-            subprocess.call( CMD, shell=True )
-            if not exists( filename_signal ) :
-                ERROR( 'Problems generating the signal with "datasynth"' )
-            signal  = np.fromfile( filename_signal, dtype='>f4' )
-            if exists( filename_signal ) :
-                remove( filename_signal )
-
-            lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, False, ndirs )
-            np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
-            progress.update()
-
-        # Ball(s)
-        for d in self.d_ISOs :
-            CMD = 'datasynth -synthmodel compartment 1 BALL %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( d*1e-6, filename_scheme, filename_signal )
-            subprocess.call( CMD, shell=True )
-            if not exists( filename_signal ) :
-                ERROR( 'Problems generating the signal with "datasynth"' )
-            signal  = np.fromfile( filename_signal, dtype='>f4' )
-            if exists( filename_signal ) :
-                remove( filename_signal )
-
-            lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, True, ndirs )
-            np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
-            progress.update()
-
+            scheme_high = amico.lut.create_high_resolution_scheme( self.scheme, b_scale=1E6 )
+            filename_scheme = pjoin( out_path, 'scheme.txt' )
+            np.savetxt( filename_scheme, scheme_high.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
+    
+            # temporary file where to store "datasynth" output
+            filename_signal = pjoin( tempfile._get_default_tempdir(), next(tempfile._get_candidate_names())+'.Bfloat' )
+    
+            nATOMS = len(self.Rs) + len(self.ICVFs) + len(self.d_ISOs)
+            progress = ProgressBar( n=nATOMS, prefix="   ", erase=False )
+    
+            # Cylinder(s)
+            for R in self.Rs :
+                if self.scheme.version == 1 :
+                    CMD = 'datasynth -synthmodel compartment 1 CYLINDERGPD %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, R, filename_scheme, filename_signal )
+                else :
+                    CMD = 'datasynth -substrate cylinder -walkers 100000 tmax 1000 -substrate cylinder -initial intra -diffusivity %E -cylinderrad %E -schemefile %s -voxels 1 > %s' % ( self.d_par*1E-6, R, filename_scheme, filename_signal )
+                
+                subprocess.call( CMD, shell=True )
+                if not exists( filename_signal ) :
+                    ERROR( 'Problems generating the signal with "datasynth"' )
+                signal  = np.fromfile( filename_signal, dtype='>f4' )
+                if exists( filename_signal ) :
+                    remove( filename_signal )
+    
+                lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, False, ndirs )
+                np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
+                progress.update()
+    
+            # Zeppelin(s)
+            for d in [ self.d_par*(1.0-ICVF) for ICVF in self.ICVFs] :
+                CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme, filename_signal )
+                subprocess.call( CMD, shell=True )
+                if not exists( filename_signal ) :
+                    ERROR( 'Problems generating the signal with "datasynth"' )
+                signal  = np.fromfile( filename_signal, dtype='>f4' )
+                if exists( filename_signal ) :
+                    remove( filename_signal )
+    
+                lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, False, ndirs )
+                np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
+                progress.update()
+    
+            # Ball(s)
+            for d in self.d_ISOs :
+                CMD = 'datasynth -synthmodel compartment 1 BALL %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( d*1e-6, filename_scheme, filename_signal )
+                subprocess.call( CMD, shell=True )
+                if not exists( filename_signal ) :
+                    ERROR( 'Problems generating the signal with "datasynth"' )
+                signal  = np.fromfile( filename_signal, dtype='>f4' )
+                if exists( filename_signal ) :
+                    remove( filename_signal )
+    
+                lm = amico.lut.rotate_kernel( signal, aux, idx_in, idx_out, True, ndirs )
+                np.save( pjoin( out_path, 'A_%03d.npy'%progress.i ), lm )
+                progress.update()
 
     def resample( self, in_path, idx_out, Ylm_out, doMergeB0, ndirs ) :
         if doMergeB0:
