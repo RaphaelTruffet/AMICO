@@ -55,7 +55,7 @@ class Scheme :
         Then, we accept two formats to describe each gradient:
             - if the shape of data is Nx4, the 4^ column is the b-value;
             - if the shape of data is Nx7, the last 4 columns are, respectively, the gradient strength, big delta, small delta and TE.
-            - if the shape of data is Nx(4+n), the 3^ column is the time echo (TE), and the last n column are the effective gradient values beween t=0 and t=TE
+            - if the shape of data is Nx(4+n), the 4^ column is the time echo (TE), and the last n column are the effective gradient values beween t=0 and t=TE
 
         Parameters
         ----------
@@ -131,6 +131,36 @@ class Scheme :
             shell['grad'] = self.raw[shell['idx'],0:3]
             self.shells.append( shell )
 
+    def write_Camino_schemefile(self, schemefile_path):
+        if self.version == 1:
+            np.savetxt( schemefile_path, self.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
+        elif self.version == 2:
+            schemefile = open(schemefile_path, 'w')
+            schemefile.write('VERSION: GENERAL_WAVEFORM \n')
+            for i in range(self.raw.shape[0]):
+                g1D = self.raw[i,4:]
+                x = self.raw[i,0]
+                y = self.raw[i,1]
+                z = self.raw[i,2]
+                TE = self.raw[i,3]
+                nb_steps = len(g1D)
+                self.writeGradient(nb_steps, TE, x*g1D, y*g1D, z*g1D, schemefile)
+            schemefile.close()
+
+    def to_version_1(self):
+        if self.version == 1 :
+            return(self)
+        elif self.version == 2:
+            delta = 0.015 * self.b / 3000 
+            gMax = np.max(self.raw[:,4:].max(axis=1))
+            Delta = 1e6 * self.b / (( 267.513e6 * gMax * delta)**2) + delta/3
+            dataBis = np.zeros((self.raw.shape[0],7))
+            dataBis[:,:3] = self.raw[:,:3]
+            dataBis[:,3] = gMax
+            dataBis[:,4] = Delta
+            dataBis[:,5] = delta
+            dataBis[:,6] = self.raw[:,3]
+            return(Scheme(dataBis))
 
     @property
     def nS( self ) :

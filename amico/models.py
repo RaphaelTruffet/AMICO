@@ -341,8 +341,10 @@ class CylinderZeppelinBall( BaseModel ) :
 
             scheme_high = amico.lut.create_high_resolution_scheme( self.scheme, b_scale=1E6 )
             filename_scheme = pjoin( out_path, 'scheme.txt' )
-            np.savetxt( filename_scheme, scheme_high.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
-    
+            if self.scheme.version == 1 :
+                np.savetxt( filename_scheme, scheme_high.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
+            else:
+                scheme_high.write_Camino_schemefile(filename_scheme)
             # temporary file where to store "datasynth" output
             filename_signal = pjoin( tempfile._get_default_tempdir(), next(tempfile._get_candidate_names())+'.Bfloat' )
     
@@ -369,7 +371,14 @@ class CylinderZeppelinBall( BaseModel ) :
     
             # Zeppelin(s)
             for d in [ self.d_par*(1.0-ICVF) for ICVF in self.ICVFs] :
-                CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme, filename_signal )
+                if self.scheme.version == 1 :
+                    CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme, filename_signal )
+                else :
+                    filename_scheme_version1 = pjoin( out_path, 'scheme_version1.txt' )
+                    scheme_version1 = scheme_high.to_version_1()
+                    np.savetxt( filename_scheme, scheme_version1.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
+                    CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme_version1, filename_signal )
+
                 subprocess.call( CMD, shell=True )
                 if not exists( filename_signal ) :
                     ERROR( 'Problems generating the signal with "datasynth"' )
