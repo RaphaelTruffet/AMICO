@@ -131,12 +131,22 @@ class Scheme :
             shell['grad'] = self.raw[shell['idx'],0:3]
             self.shells.append( shell )
 
+    def write_Camino_wf(self, nb_steps, TE, Gx, Gy, Gz, schemefile):
+        dt = TE/nb_steps
+        schemefile.write(str(nb_steps)+' '+str(dt)+' ')
+        nb_dec = 5
+        for i in range(nb_steps):
+            schemefile.write(str(round(Gx[i], nb_dec))+' ')
+            schemefile.write(str(round(Gy[i], nb_dec))+' ')
+            schemefile.write(str(round(Gz[i], nb_dec))+' ')
+        schemefile.write('\n')
+
     def write_Camino_schemefile(self, schemefile_path):
         if self.version == 1:
             np.savetxt( schemefile_path, self.raw, fmt='%15.8e', delimiter=' ', header='VERSION: STEJSKALTANNER', comments='' )
         elif self.version == 2:
             schemefile = open(schemefile_path, 'w')
-            schemefile.write('VERSION: GENERAL_WAVEFORM \n')
+            schemefile.write('VERSION: GRADIENT_WAVEFORM \n')
             for i in range(self.raw.shape[0]):
                 g1D = self.raw[i,4:]
                 x = self.raw[i,0]
@@ -144,16 +154,18 @@ class Scheme :
                 z = self.raw[i,2]
                 TE = self.raw[i,3]
                 nb_steps = len(g1D)
-                self.writeGradient(nb_steps, TE, x*g1D, y*g1D, z*g1D, schemefile)
+                self.write_Camino_wf(nb_steps, TE, x*g1D, y*g1D, z*g1D, schemefile)
             schemefile.close()
 
     def to_version_1(self):
         if self.version == 1 :
             return(self)
         elif self.version == 2:
-            delta = 0.015 * self.b / 3000 
-            gMax = np.max(self.raw[:,4:].max(axis=1))
-            Delta = 1e6 * self.b / (( 267.513e6 * gMax * delta)**2) + delta/3
+            gamma = 267.513e6
+            delta = 0.010
+            Delta = 0.025
+            gMax = [np.sqrt(value/(gamma*gamma*delta*delta*(Delta-delta/3))) for value in self.b]
+            gMax = np.array(gMax)
             dataBis = np.zeros((self.raw.shape[0],7))
             dataBis[:,:3] = self.raw[:,:3]
             dataBis[:,3] = gMax

@@ -8,7 +8,8 @@ import pickle
 from dipy.data.fetcher import dipy_home
 from dipy.core.geometry import cart2sphere
 from dipy.reconst.shm import real_sym_sh_basis
-import amico.scheme
+#import amico.scheme
+from scheme import Scheme
 from amico.util import LOG, NOTE, WARNING, ERROR
 
 def is_valid(ndirs):
@@ -367,20 +368,24 @@ def create_high_resolution_scheme( scheme, b_scale = 1 ) :
         If needed, apply a scaling to the b-values (default : 1)
     """
     n = len( scheme.shells )
-    raw = np.zeros( (500*n, 4 if scheme.version==0 else 7) )
+    nb_columns = scheme.raw.shape[1]
+    raw = np.zeros( (500*n, nb_columns) )
     row = 0
     for i in range(n) :
         raw[row:row+500,0:3] = grad
         if scheme.version == 0 :
             raw[row:row+500,3] = scheme.shells[i]['b'] * b_scale
-        else :
+        elif scheme.version == 1 :
             raw[row:row+500,3] = scheme.shells[i]['G']
             raw[row:row+500,4] = scheme.shells[i]['Delta']
             raw[row:row+500,5] = scheme.shells[i]['delta']
             raw[row:row+500,6] = scheme.shells[i]['TE']
+        else :
+            raw[row:row+500,3] = scheme.shells[i]['TE']
+            raw[row:row+500,4:] = scheme.shells[i]['wf']
         row += 500
 
-    return amico.scheme.Scheme( raw )
+    return Scheme( raw )
 
 
 """Gradient orientations for each shell of the high-resolution response functions.

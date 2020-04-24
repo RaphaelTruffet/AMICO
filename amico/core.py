@@ -8,16 +8,24 @@ from os import makedirs, remove
 from os.path import exists, join as pjoin
 import nibabel
 import pickle
+from dipy.core.gradients import gradient_table
+import dipy.reconst.dti as dti
+"""
 import amico.scheme
 from amico.preproc import debiasRician
 import amico.lut
 import amico.models
 from amico.lut import is_valid
 from amico.progressbar import ProgressBar
-from dipy.core.gradients import gradient_table
-import dipy.reconst.dti as dti
 from amico.util import LOG, NOTE, WARNING, ERROR
-
+"""
+from scheme import Scheme
+from amico.preproc import debiasRician
+import amico.lut
+import models
+from amico.lut import is_valid
+from amico.progressbar import ProgressBar
+from amico.util import LOG, NOTE, WARNING, ERROR
 
 def setup( lmax = 12, ndirs = 32761 ) :
     """General setup/initialization of the AMICO framework.
@@ -127,7 +135,7 @@ class Evaluation :
         print('\t* Acquisition scheme')
         self.set_config('scheme_filename', scheme_filename)
         self.set_config('b0_thr', b0_thr)
-        self.scheme = amico.scheme.Scheme( pjoin( self.get_config('DATA_path'), scheme_filename), b0_thr )
+        self.scheme = Scheme( pjoin( self.get_config('DATA_path'), scheme_filename), b0_thr )
         print('\t\t- %d samples, %d shells' % ( self.scheme.nS, len(self.scheme.shells) ))
         print('\t\t- %d @ b=0' % ( self.scheme.b0_count ), end=' ')
         for i in range(len(self.scheme.shells)) :
@@ -201,8 +209,8 @@ class Evaluation :
             The name of the model (must match a class name in "amico.models" module)
         """
         # Call the specific model constructor
-        if hasattr(amico.models, model_name ) :
-            self.model = getattr(amico.models,model_name)()
+        if hasattr(models, model_name ) :
+            self.model = getattr(models,model_name)()
         else :
             ERROR( 'Model "%s" not recognized' % model_name )
 
