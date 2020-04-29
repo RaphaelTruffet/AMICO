@@ -367,16 +367,21 @@ class CylinderZeppelinBall( BaseModel ) :
             for R in self.Rs :
                 if self.scheme.version == 1 :
                     CMD = 'datasynth -synthmodel compartment 1 CYLINDERGPD %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, R, filename_scheme, filename_signal )
-                else :
-                    if R == 0.01E-6 :
+                else : # version == 2
+                    if R == 0.01E-6 : # too long to place the molecules in the intra 
                         CMD = 'datasynth -synthmodel compartment 1 CYLINDERGPD %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, R, filename_scheme_version1, filename_signal )
+                        subprocess.call( CMD, shell=True )
+                        if not exists( filename_signal ) :
+                            ERROR( 'Problems generating the signal with "datasynth"' )
+                        signal  = np.fromfile( filename_signal, dtype='>f4' )
                     else :
-                        CMD = 'datasynth -substrate cylinder -walkers 10000 -tmax 1000 -substrate cylinder -initial intra -diffusivity %E -cylinderrad %E -schemefile %s -voxels 1 > %s' % ( self.d_par*1E-6, R, filename_scheme, filename_signal )
-                
-                subprocess.call( CMD, shell=True )
-                if not exists( filename_signal ) :
-                    ERROR( 'Problems generating the signal with "datasynth"' )
-                signal  = np.fromfile( filename_signal, dtype='>f4' )
+                        nb_walkers = 1000
+                        CMD = 'datasynth -substrate cylinder -walkers %d -tmax 1000 -initial intra -diffusivity %E -cylinderrad %E -schemefile %s -voxels 1 > %s' % (nb_walkers, self.d_par*1E-6, R, filename_scheme, filename_signal )
+                        subprocess.call( CMD, shell=True )
+                        if not exists( filename_signal ) :
+                            ERROR( 'Problems generating the signal with "datasynth"' )
+                        signal  = np.fromfile( filename_signal, dtype='>f4' ) / nb_walkers
+
                 if exists( filename_signal ) :
                     remove( filename_signal )
     
@@ -388,7 +393,7 @@ class CylinderZeppelinBall( BaseModel ) :
             for d in [ self.d_par*(1.0-ICVF) for ICVF in self.ICVFs] :
                 if self.scheme.version == 1 :
                     CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme, filename_signal )
-                else :
+                else : # version == 2
                     CMD = 'datasynth -synthmodel compartment 1 ZEPPELIN %E 0 0 %E -schemefile %s -voxels 1 -outputfile %s 2> /dev/null' % ( self.d_par*1E-6, d*1e-6, filename_scheme_version1, filename_signal )
 
                 subprocess.call( CMD, shell=True )
